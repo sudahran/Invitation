@@ -1,0 +1,16 @@
+/* Shared helpers. No credentials and no guest list in the public configuration. */
+window.Invitation = (() => {
+  const dbName='invitation-studio:'+new URL('.',location.href).pathname.replace(/editor\/$/,'');
+  function db(){return new Promise((resolve,reject)=>{const r=indexedDB.open(dbName,1);r.onupgradeneeded=()=>r.result.createObjectStore('drafts',{keyPath:'id'});r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error);});}
+  async function storage(method,value){const d=await db();return new Promise((resolve,reject)=>{const t=d.transaction('drafts',method==='getAll'||method==='get'?'readonly':'readwrite');const r=t.objectStore('drafts')[method](value);t.oncomplete=()=>{resolve(r.result);d.close();};t.onerror=()=>{reject(t.error);d.close();};t.onabort=()=>{reject(t.error);d.close();};});}
+  function safeUrl(v,media=false){if(!v)return '';try{if(media&&/^data:(image\/(png|jpeg|webp|gif)|audio\/[a-z0-9.+-]+);base64,/i.test(v))return v;const u=new URL(v,location.href);if(['http:','https:'].includes(u.protocol))return u.href;if(u.protocol==='file:'&&!/^[a-z]+:/i.test(v)&&!v.startsWith('//'))return v;}catch{}return '';}
+  function baseUrl(v){const u=new URL(v);if(u.protocol!=='https:'||u.username||u.password)throw Error('Isi URL publik lengkap dengan https://');if(/\/admin\.html$/i.test(u.pathname))throw Error('Gunakan alamat halaman undangan, bukan admin.html.');u.search='';u.hash='';if(!u.pathname.endsWith('/')&&!u.pathname.endsWith('.html'))u.pathname+='/';return u;}
+  function guestLink(base,name){const u=baseUrl(base);u.searchParams.set('to',name.trim());return u.href;}
+  function date(v,opt){if(!/^\d{4}-\d{2}-\d{2}$/.test(v||''))return '';const parsed=new Date(v+'T12:00:00Z');if(!Number.isFinite(parsed.getTime()))return '';return new Intl.DateTimeFormat('id-ID',opt||{weekday:'long',day:'numeric',month:'long',year:'numeric',timeZone:'UTC'}).format(parsed);}
+  function couple(c){return (c.brideShort||'Mempelai wanita')+' & '+(c.groomShort||'Mempelai pria');}
+  function message(c,name){const values={nama:name,mempelai:couple(c),tanggal:date(c[c.countdownEvent+'Date']),link:guestLink(c.siteUrl,name)};return c.shareTemplate.replace(/\{(nama|mempelai|tanggal|link)\}/g,(_,k)=>values[k]);}
+  async function copy(s){try{await navigator.clipboard.writeText(s);}catch{const t=document.createElement('textarea');t.value=s;t.style.position='fixed';t.style.opacity='0';document.body.append(t);t.select();const ok=document.execCommand('copy');t.remove();if(!ok)throw Error('Salin otomatis diblokir. Silakan pilih dan salin teks secara manual.');}}
+  function download(name,body,type='application/octet-stream'){const u=URL.createObjectURL(new Blob([body],{type}));const a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),30000);}
+  function normalize(input){const c={};for(const [key,def] of Object.entries(window.WEDDING_CONFIG)){c[key]=typeof input?.[key]==='string'?input[key]:def;}if(!['event1','event2'].includes(c.countdownEvent))c.countdownEvent='event2';if(!['+07:00','+08:00','+09:00'].includes(c.timezone))c.timezone='+07:00';return c;}
+  return {storage,safeUrl,baseUrl,guestLink,date,couple,message,copy,download,normalize};
+})();
